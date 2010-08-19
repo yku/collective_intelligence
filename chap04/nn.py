@@ -101,3 +101,40 @@ class searchnet:
     def getresult(self, wordids, urlids):
         self.setupnetwork(wordids, urlids)
         return self.feedforward()
+
+    def backPropagation(self, targets, N=0.5):
+        # 隠れ層-出力層の結合荷重の修正
+        output_deltas = [0.0] * (len(self.urlids))
+        for j in range(len(self.hiddenids)):
+            for k in range(len(self.urlids)):
+                output_deltas[k] = (targets[k] - self.ao[k]) * self.ao[k] * (1 - self.ao[k])
+                self.wo[j][k] = self.wo[j][k] + N * output_deltas[k] * self.ah[j]
+        # 入力層-隠れ層の結合荷重の修正
+        hidden_deltas = [0.0] * (len(self.hiddenids))
+        for j in range(len(self.hiddenids)):
+            error = 0.0
+            for k in range(len(self.urlids)):
+                error = error + output_deltas[k] * self.wo[j][k]
+            hidden_deltas[j] = self.ah[j] * (1 - self.ah[j]) * error
+        for i in range(len(self.wordids)):
+            for j in range(len(self.hiddenids)):
+                self.wi[i][j] = self.wi[i][j] + N * hidden_deltas[j] * self.ai[i]
+
+    def trainquery(self, wordids, urlids, selectedurl):
+        self.generatehiddennode(wordids, urlids)
+        self.setupnetwork(wordids, urlids)
+        self.feedforward()
+        targets = [0.0] * len(urlids)
+        targets[urlids.index(selectedurl)] = 1.0
+        error = self.backPropagation(targets)
+        self.updatedatabase()
+
+    def updatedatabase(self):
+        for i in range(len(self.wordids)):
+            for j in range(len(self.hiddenids)):
+                self.setstrength(self.wordids[i], self.hiddenids[j], 0, self.wi[i][j])
+        for j in range(len(self.hiddenids)):
+            for k in range(len(self.urlids)):
+                self.setstrength(self.hiddenids[j], self.urlids[k], 1, self.wo[j][k])
+        self.con.commit()
+
